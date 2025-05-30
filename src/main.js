@@ -898,3 +898,453 @@ const sound = new THREE.Audio(listener);
 
 const audioLoader = new THREE.AudioLoader();
 audioLoader.load(
+  "/music/Star Citizen Soundtrack StarEngine.mp3",
+  function (buffer) {
+    sound.setBuffer(buffer);
+    sound.setLoop(true);
+    sound.setVolume(0.5);
+    sound.play();
+
+    showMusicCredits();
+  },
+);
+
+document.getElementById("toggle-music").addEventListener("click", () => {
+  if (sound.isPlaying) {
+    sound.pause();
+  } else {
+    sound.play();
+  }
+});
+
+/**
+ * @description Displays the music credits on the screen for a limited time.
+ */
+function showMusicCredits() {
+  const credits = document.createElement("div");
+  credits.innerHTML = `
+    Música: <em>StarEngine Menu Version</em> — Pedro Macedo Camacho ft Lara Ausensi
+  `;
+  credits.id = "music-credits";
+  credits.style.cssText = `
+    position: absolute;
+    bottom: 10px;
+    left: 15%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.7);
+    color: white;
+    font-size: 12px;
+    font-family: sans-serif;
+    padding: 8px 12px;
+    border-radius: 6px;
+    opacity: 0;
+    transition: opacity 2s ease;
+    z-index: 1000;
+  `;
+  document.body.appendChild(credits);
+
+  // Fade in
+  setTimeout(() => {
+    credits.style.opacity = "1";
+  }, 100);
+
+  // Fade out e remover
+  setTimeout(() => {
+    credits.style.opacity = "0";
+    setTimeout(() => credits.remove(), 2000); // remove after fade out
+  }, 10000); // mostra durante 10 segundos
+}
+// ------------------------------------ END BACKGROUND MUSIC ------------------------------------
+
+// ------------------------------------ BEGIN ANIMATE FUNCTION ------------------------------------
+document.getElementById("sim-speed").addEventListener("input", (e) => {
+  let value = parseFloat(e.target.value);
+
+  // If the value is NaN or less than or equal to 0, set it to 100
+  if (isNaN(value) || value <= 0) {
+    value = 100;
+  }
+  // If the value is greater than 10000, set it to 10000
+  if (value > 10000) {
+    value = 10000;
+  }
+
+  e.target.value = value;
+  simulationSpeed = value;
+});
+
+// ------------------------------------ BEGIN drop down list edit FUNCTION ------------------------------------
+/**
+ * @description Update the dropdown list with the current objects in the scene.
+ */
+function updateObjectDropdown() {
+  const dropdown = document.getElementById("object-dropdown");
+  dropdown.innerHTML = '<option value="">Select an Object</option>';
+
+  // Adiciona planetas
+  planetMeshes.forEach((planet, index) => {
+    const planetName =
+      index < planets.length
+        ? planets[index].name
+        : `Additional Planet ${index - planets.length + 1}`;
+    const option = document.createElement("option");
+    option.value = `planet-${index}`;
+    option.textContent = `Planet: ${planetName}`;
+    dropdown.appendChild(option);
+  });
+
+  // Adiciona luas
+  moons.forEach((moon, index) => {
+    let parentName = "Unknown";
+    const parentIndex = planetMeshes.findIndex((p) => p.mesh === moon.parent);
+    if (parentIndex !== -1) {
+      parentName =
+        parentIndex < planets.length
+          ? planets[parentIndex].name
+          : `Additional Planet ${parentIndex - planets.length + 1}`;
+    }
+    const option = document.createElement("option");
+    option.value = `moon-${index}`;
+    option.textContent = `Moon of ${parentName}`;
+    dropdown.appendChild(option);
+  });
+
+  // Adiciona o Sol
+  const sunOption = document.createElement("option");
+  sunOption.value = "sun";
+  sunOption.textContent = "Sun";
+  dropdown.appendChild(sunOption);
+}
+
+/**
+ * @description Removes an object (planet) from the scene based on its type and index.
+ */
+function removeObject() {
+  const dropdown = document.getElementById("object-dropdown");
+  const selectedValue = dropdown.value;
+
+  if (!selectedValue) {
+    alert("Please select an object to remove");
+    return;
+  }
+
+  if (selectedValue.startsWith("planet-")) {
+    const index = parseInt(selectedValue.split("-")[1]);
+    removePlanet(index);
+  } else if (selectedValue.startsWith("moon-")) {
+    const index = parseInt(selectedValue.split("-")[1]);
+    removeMoon(index);
+  } else if (selectedValue === "sun") {
+    alert("Cannot remove the Sun!");
+  }
+
+  // Atualiza a lista de objetos após remoção
+  updateObjectDropdown();
+}
+
+/**
+ * @description Removes a planet from the scene based on its index.
+ * @param index
+ */
+function removePlanet(index) {
+  if (index >= 0 && index < planetMeshes.length) {
+    // Remove o planeta da cena
+    scene.remove(planetMeshes[index].mesh);
+
+    // Remove a linha de órbita
+    if (planetMeshes[index].orbitLine) {
+      scene.remove(planetMeshes[index].orbitLine);
+    }
+
+    // Remove todas as luas associadas a este planeta
+    for (let i = moons.length - 1; i >= 0; i--) {
+      if (moons[i].parent === planetMeshes[index].mesh) {
+        scene.remove(moons[i].mesh);
+
+        // Remove a linha de órbita da lua (se existir)
+        if (moons[i].orbitLine) {
+          scene.remove(moons[i].orbitLine);
+        }
+
+        moons.splice(i, 1);
+      }
+    }
+
+    // Remove o planeta do array
+    planetMeshes.splice(index, 1);
+
+    // Remove modelos especiais associados a planetas específicos
+    if (index === 0 && starDestroyer) {
+      scene.remove(starDestroyer);
+      starDestroyer = null;
+    } else if (index === 1 && enterprise) {
+      scene.remove(enterprise);
+      enterprise = null;
+    } else if (index === 2 && enterpriseE) {
+      scene.remove(enterpriseE);
+      enterpriseE = null;
+    } else if (index === 3 && deathStar) {
+      scene.remove(deathStar);
+      deathStar = null;
+    } else if (index === 4 && lucrehulk) {
+      scene.remove(lucrehulk);
+      lucrehulk = null;
+    }
+  }
+}
+
+/**
+ * @description Removes a moon from the scene based on its index.
+ * @param index
+ */
+function removeMoon(index) {
+  if (index >= 0 && index < moons.length) {
+    scene.remove(moons[index].mesh);
+    moons.splice(index, 1);
+  }
+}
+
+// Atualize o event listener do botão de remover para chamar a nova função
+document
+  .querySelector("button[onclick='removeObject()']")
+  .addEventListener("click", removeObject);
+
+/**
+ * @description Changes the speed of the orbit for the selected object in the dropdown.
+ * @param {number|string} speed - The new orbit speed (can be a number or string from input)
+ */
+function changeOrbitSpeed(speed) {
+  // Convert the input to a number (in case it comes as string)
+  const newSpeed = parseFloat(speed);
+
+  // Check if the conversion resulted in a valid number
+  if (isNaN(newSpeed)) {
+    alert("Please enter a valid number for the orbital speed");
+    return;
+  }
+
+  // Define os limites de velocidade
+  const minSpeed = 0.001; // Velocidade mínima
+  const maxSpeed = 2; // Velocidade máxima (como solicitado)
+
+  // Limita a velocidade entre os valores mínimo e máximo
+  const clampedSpeed = Math.max(minSpeed, Math.min(newSpeed, maxSpeed));
+
+  // Se o valor inserido for maior que o máximo, mostra um aviso
+  if (newSpeed > maxSpeed) {
+    alert(
+      `The maximum allowed orbital speed is ${maxSpeed}. The object has been set to this value.`,
+    );
+  }
+
+  const dropdown = document.getElementById("object-dropdown");
+  const selectedValue = dropdown.value;
+
+  if (!selectedValue) {
+    alert("Please select an object first");
+    return;
+  }
+
+  if (selectedValue.startsWith("planet-")) {
+    const index = parseInt(selectedValue.split("-")[1]);
+    if (planetMeshes[index]) {
+      planetMeshes[index].speed = clampedSpeed;
+    }
+  } else if (selectedValue.startsWith("moon-")) {
+    const index = parseInt(selectedValue.split("-")[1]);
+    if (moons[index]) {
+      moons[index].speed = clampedSpeed;
+    }
+  } else if (selectedValue === "sun") {
+    alert("It's not possible to change the Sun's orbital speed!");
+  }
+}
+
+// Adiciona event listener para o Enter no campo de velocidade orbital
+document.getElementById("orbit-speed").addEventListener("keypress", (e) => {
+  if (e.key === "Enter") {
+    changeOrbitSpeed(e.target.value);
+    e.target.value = ""; // Limpa o campo após aplicar
+  }
+});
+
+/**
+ * @description Resizes the selected object (planet or moon) based on the scale factor provided.
+ * @param {number|string} scale - The new scale value (can be a number or string from input)
+ */
+function resizeObject(scale) {
+  // Convert the input to a number (in case it comes as string)
+  const newScale = parseFloat(scale);
+
+  // Check if the conversion resulted in a valid number
+  if (isNaN(newScale)) {
+    alert("Please enter a valid number for the scale");
+    return;
+  }
+
+  // Define os limites mínimo e máximo de escala
+  const minScale = 0.1;
+  const maxScale = 5;
+
+  // Limita a escala entre os valores mínimo e máximo
+  const clampedScale = Math.max(minScale, Math.min(newScale, maxScale));
+
+  // Se o valor inserido for maior que o máximo, mostra um aviso
+  if (newScale > maxScale) {
+    alert(
+      `The maximum allowed scale is ${maxScale}. The object has been set to this value.`,
+    );
+  }
+
+  const dropdown = document.getElementById("object-dropdown");
+  const selectedValue = dropdown.value;
+
+  if (!selectedValue) {
+    alert("Please select an object first");
+    return;
+  }
+
+  if (selectedValue.startsWith("planet-")) {
+    const index = parseInt(selectedValue.split("-")[1]);
+    if (planetMeshes[index]) {
+      planetMeshes[index].mesh.scale.set(
+        clampedScale,
+        clampedScale,
+        clampedScale,
+      );
+    }
+  } else if (selectedValue.startsWith("moon-")) {
+    const index = parseInt(selectedValue.split("-")[1]);
+    if (moons[index]) {
+      moons[index].mesh.scale.set(clampedScale, clampedScale, clampedScale);
+    }
+  } else if (selectedValue === "sun") {
+    alert("It's not possible to resize the Sun!");
+  }
+}
+
+// Adiciona event listener para o Enter no campo de redimensionamento
+document.getElementById("resize-scale").addEventListener("keypress", (e) => {
+  if (e.key === "Enter") {
+    resizeObject(e.target.value);
+    e.target.value = ""; // Limpa o campo após aplicar
+  }
+});
+
+/**
+ * @description Edits the rotation of the selected object based on the provided x, y, and z rotation values.
+ */
+function editRotation() {
+  const dropdown = document.getElementById("object-dropdown");
+  const selectedValue = dropdown.value;
+
+  if (!selectedValue) {
+    alert("Please select an object first");
+    return;
+  }
+
+  // Obter valores dos campos de input e converter para números
+  const rotationX =
+    parseFloat(document.getElementById("rotation-x").value) || 0;
+  const rotationY =
+    parseFloat(document.getElementById("rotation-y").value) || 0;
+  const rotationZ =
+    parseFloat(document.getElementById("rotation-z").value) || 0;
+
+  if (selectedValue.startsWith("planet-")) {
+    const index = parseInt(selectedValue.split("-")[1]);
+    if (planetMeshes[index]) {
+      planetMeshes[index].mesh.rotation.set(rotationX, rotationY, rotationZ);
+    }
+  } else if (selectedValue.startsWith("moon-")) {
+    const index = parseInt(selectedValue.split("-")[1]);
+    if (moons[index]) {
+      moons[index].mesh.rotation.set(rotationX, rotationY, rotationZ);
+    }
+  } else if (selectedValue === "sun") {
+    sun.rotation.set(rotationX, rotationY, rotationZ);
+    sunGlow.rotation.set(rotationX, rotationY, rotationZ); // Rotaciona também o glow do Sol
+  }
+}
+
+// Adiciona event listeners para os campos de rotação
+document.getElementById("rotation-x").addEventListener("change", editRotation);
+document.getElementById("rotation-y").addEventListener("change", editRotation);
+document.getElementById("rotation-z").addEventListener("change", editRotation);
+
+// Adiciona suporte para pressionar Enter
+document.getElementById("rotation-x").addEventListener("keypress", (e) => {
+  if (e.key === "Enter") editRotation();
+});
+document.getElementById("rotation-y").addEventListener("keypress", (e) => {
+  if (e.key === "Enter") editRotation();
+});
+document.getElementById("rotation-z").addEventListener("keypress", (e) => {
+  if (e.key === "Enter") editRotation();
+});
+
+/**
+ * @description Edits the texture of the selected planet or moon based on the provided texture path.
+ * @param {string} texturePath - Path to the new texture image
+ */
+function editTexture(texturePath) {
+  // Verifica se o caminho foi fornecido
+  if (!texturePath || texturePath.trim() === "") {
+    alert("Por favor insira um caminho válido para a textura");
+    return;
+  }
+
+  const dropdown = document.getElementById("object-dropdown");
+  const selectedValue = dropdown.value;
+
+  if (!selectedValue) {
+    alert("Por favor selecione um objeto primeiro");
+    return;
+  }
+
+  // Função para aplicar a textura a um material
+  const applyTexture = (material, path) => {
+    textureLoader.load(
+      path,
+      (texture) => {
+        // Mantém as propriedades existentes do material
+        material.map = texture;
+        material.needsUpdate = true;
+        alert("Texture applied successfully!");
+      },
+      undefined, // Progress callback (opcional)
+      (error) => {
+        console.error("Error loading texture:", error);
+        alert(`Error loading texture: ${error.message}`);
+      },
+    );
+  };
+
+  if (selectedValue.startsWith("planet-")) {
+    const index = parseInt(selectedValue.split("-")[1]);
+    if (planetMeshes[index]) {
+      applyTexture(planetMeshes[index].mesh.material, texturePath);
+
+      // Atualiza também os anéis de Saturno se for o caso
+      if (
+        planets[index]?.name === "Saturn" &&
+        planetMeshes[index].mesh.children[0]
+      ) {
+        textureLoader.load(texturePath, (texture) => {
+          planetMeshes[index].mesh.children[0].material.map = texture;
+          planetMeshes[index].mesh.children[0].material.needsUpdate = true;
+        });
+      }
+    }
+  } else if (selectedValue.startsWith("moon-")) {
+    const index = parseInt(selectedValue.split("-")[1]);
+    if (moons[index]) {
+      applyTexture(moons[index].mesh.material, texturePath);
+    }
+  } else if (selectedValue === "sun") {
+    alert("It's not possible to change the Sun's texture!");
+  }
+}
+
+// Adiciona event listener para o Enter no campo de textura
+document.getElementById("texture-path").addEventListener("keypress", (e) => {
