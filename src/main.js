@@ -1348,3 +1348,387 @@ function editTexture(texturePath) {
 
 // Adiciona event listener para o Enter no campo de textura
 document.getElementById("texture-path").addEventListener("keypress", (e) => {
+  if (e.key === "Enter") {
+    editTexture(e.target.value);
+    e.target.value = ""; // Limpa o campo após aplicar
+  }
+});
+
+// Adiciona sugestões de texturas disponíveis
+const availableTextures = [
+  "textures/mercury.jpg",
+  "textures/venus.jpg",
+  "textures/earth.jpg",
+  "textures/mars.jpg",
+  "textures/jupiter.jpg",
+  "textures/saturn.jpg",
+  "textures/uranus.jpg",
+  "textures/neptune.jpg",
+  "textures/moon.jpg",
+  "textures/ceres_fictional.jpg",
+  "textures/eris_fictional.jpg",
+  "textures/haumea_fictional.jpg",
+  "textures/makemake_fictional.jpg",
+];
+
+// Preenche um datalist com sugestões (opcional)
+const textureDatalist = document.createElement("datalist");
+textureDatalist.id = "texture-suggestions";
+availableTextures.forEach((texture) => {
+  const option = document.createElement("option");
+  option.value = texture;
+  textureDatalist.appendChild(option);
+});
+document.getElementById("texture-path").parentNode.appendChild(textureDatalist);
+document
+  .getElementById("texture-path")
+  .setAttribute("list", "texture-suggestions");
+
+/**
+ * @description Changes the intensity of the sun light in the scene with validation and limits.
+ * @param {number|string} intensity - The new light intensity (0-100)
+ */
+function changeSunLightIntensity(intensity) {
+  // Convert input to number
+  const newIntensity = parseFloat(intensity);
+
+  // Validate input
+  if (isNaN(newIntensity)) {
+    alert("Please enter a valid number for the sun intensity (0-100)");
+    return;
+  }
+
+  // Define intensity limits
+  const minIntensity = 0;
+  const maxIntensity = 150; // Maximum allowed intensity
+  const recommendedMax = 100; // Recommended maximum
+
+  // Clamp the intensity value
+  const clampedIntensity = Math.max(
+    minIntensity,
+    Math.min(newIntensity, maxIntensity),
+  );
+
+  // Warn if exceeding recommended maximum
+  if (newIntensity > recommendedMax) {
+    if (
+      !confirm(
+        `The recommended maximum intensity is ${recommendedMax}. Are you sure you want to set it to ${clampedIntensity}?` +
+          "\n\nThis may cause performance issues or visual artifacts." +
+          "\n\nClick OK to proceed, or Cancel to keep the previous value.",
+      )
+    ) {
+      return; // User canceled
+    }
+  }
+
+  // Apply intensity changes
+  if (sunLight) {
+    sunLight.intensity = clampedIntensity;
+
+    // Also adjust sun glow effect proportionally
+    if (sunGlow.material) {
+      sunGlow.material.opacity = 0.1 * (clampedIntensity / 100);
+      sunGlow.material.needsUpdate = true;
+    }
+
+    // Update the input field to show clamped value
+    document.getElementById("sun-intensity").value = clampedIntensity;
+
+    // Visual feedback
+    const intensityElement = document.createElement("div");
+    intensityElement.textContent = `Intensidade do Sol: ${clampedIntensity.toFixed(1)}`;
+    intensityElement.style.position = "absolute";
+    intensityElement.style.top = "20px";
+    intensityElement.style.right = "20px";
+    intensityElement.style.backgroundColor = "rgba(0,0,0,0.7)";
+    intensityElement.style.color = "white";
+    intensityElement.style.padding = "5px 10px";
+    intensityElement.style.borderRadius = "5px";
+    intensityElement.style.zIndex = "1000";
+    document.body.appendChild(intensityElement);
+
+    // Remove feedback after 2 seconds
+    setTimeout(() => {
+      intensityElement.remove();
+    }, 2000);
+  }
+}
+
+// Add event listeners
+document.getElementById("sun-intensity").addEventListener("change", (e) => {
+  changeSunLightIntensity(e.target.value);
+});
+
+document.getElementById("sun-intensity").addEventListener("keypress", (e) => {
+  if (e.key === "Enter") {
+    changeSunLightIntensity(e.target.value);
+  }
+});
+
+// Set initial placeholder with current intensity
+if (sunLight) {
+  document.getElementById("sun-intensity").placeholder =
+    `Atual: ${sunLight.intensity}`;
+}
+
+// Inicializa a drop-down
+updateObjectDropdown();
+// -------------------------------------- END ANIMATE FUNCTION ------------------------------------
+
+// ------------------------------------ BEGIN ANIMATE FUNCTION ------------------------------------
+const animatedModels = [];
+
+/**
+ * @description Adds a model to the animated models array with its mesh, direction, and speed.
+ * @return {void}
+ */
+function animate() {
+  requestAnimationFrame(animate);
+
+  const delta = clock.getDelta(); // Get the time elapsed since the last frame
+  const degToRad = Math.PI / 180;
+
+  animatedModels.forEach((item) => {
+    item.mesh.position.add(item.direction.clone().multiplyScalar(item.speed));
+  });
+
+  planetMeshes.forEach((planet) => {
+    // A velocidade base do planeta (planet.speed) é o fator relativo do planeta
+    // simulationSpeed é em graus/segundo, converte para radianos/segundo
+    const angularSpeed = simulationSpeed * degToRad; // rad/s
+
+    // Atualiza o ângulo orbital
+    if (planet.angle === undefined) planet.angle = 0;
+    planet.angle += planet.speed * angularSpeed * delta;
+
+    // Calcula posição elíptica
+    const x = planet.a * Math.cos(planet.angle);
+    const z = planet.b * Math.sin(planet.angle);
+
+    planet.mesh.position.set(x, 0, z);
+
+    // Rotação do planeta sobre o próprio eixo (opcional)
+    planet.mesh.rotation.y += planet.rotationSpeed * angularSpeed * delta;
+  });
+
+  // Enterprise orbit around Venus
+  if (enterprise && planetMeshes[1]) {
+    const venus = planetMeshes[1].mesh;
+    enterpriseOrbitAngle += enterpriseOrbitSpeed;
+
+    // Inclinação do plano orbital (em radianos)
+    const inclination = Math.PI / 6; // 30 graus
+
+    // Cálculo da órbita inclinada
+    const x =
+      venus.position.x + Math.cos(enterpriseOrbitAngle) * enterpriseOrbitRadius;
+    const z =
+      venus.position.z + Math.sin(enterpriseOrbitAngle) * enterpriseOrbitRadius;
+    const y =
+      venus.position.y +
+      Math.sin(enterpriseOrbitAngle) *
+        enterpriseOrbitRadius *
+        Math.sin(inclination);
+
+    // Atualiza a posição da nave
+    enterprise.position.set(x, y, z);
+
+    // Rotaciona a nave para apontar na direção do movimento
+    const nextAngle = enterpriseOrbitAngle + 0.01;
+    const nextX =
+      venus.position.x + Math.cos(nextAngle) * enterpriseOrbitRadius;
+    const nextZ =
+      venus.position.z + Math.sin(nextAngle) * enterpriseOrbitRadius;
+    const nextY =
+      venus.position.y +
+      Math.sin(nextAngle) * enterpriseOrbitRadius * Math.sin(inclination);
+
+    const target = new THREE.Vector3(nextX, nextY, nextZ);
+    enterprise.lookAt(target); // faz a nave apontar para a próxima posição na órbita
+  }
+
+  if (enterpriseE && planetMeshes[2]) {
+    const earth = planetMeshes[2].mesh;
+    enterpriseEOrbitAngle += enterpriseEOrbitSpeed;
+    const x =
+      earth.position.x +
+      Math.cos(enterpriseEOrbitAngle) * enterpriseEOrbitRadius;
+    const z =
+      earth.position.z +
+      Math.sin(enterpriseEOrbitAngle) * enterpriseEOrbitRadius;
+    const y =
+      earth.position.y +
+      Math.sin(enterpriseEOrbitAngle) *
+        enterpriseEOrbitRadius *
+        Math.sin(enterpriseEInclination);
+
+    // Atualiza a posição da nave Enterprise E
+    enterpriseE.position.set(x, y, z);
+
+    const nextAngle = enterpriseEOrbitAngle + 0.01;
+    const nextX =
+      earth.position.x + Math.cos(nextAngle) * enterpriseEOrbitRadius;
+    const nextZ =
+      earth.position.z + Math.sin(nextAngle) * enterpriseEOrbitRadius;
+    const nextY =
+      earth.position.y +
+      Math.sin(nextAngle) *
+        enterpriseEOrbitRadius *
+        Math.sin(enterpriseEInclination);
+    enterpriseE.lookAt(new THREE.Vector3(nextX, nextY, nextZ));
+  }
+
+  // Lucrehulk orbita Júpiter (índice 4)
+  if (lucrehulk && planetMeshes[4]) {
+    const jupiter = planetMeshes[4].mesh;
+    lucrehulkOrbitAngle += lucrehulkOrbitSpeed;
+
+    const x =
+      jupiter.position.x + Math.cos(lucrehulkOrbitAngle) * lucrehulkOrbitRadius;
+    const z =
+      jupiter.position.z + Math.sin(lucrehulkOrbitAngle) * lucrehulkOrbitRadius;
+    const y =
+      jupiter.position.y +
+      Math.sin(lucrehulkOrbitAngle) *
+        lucrehulkOrbitRadius *
+        Math.sin(lucrehulkInclination);
+
+    lucrehulk.position.set(x, y, z);
+
+    // Orientar a estação na direção do movimento
+    const nextAngle = lucrehulkOrbitAngle + 0.01;
+    const nextX =
+      jupiter.position.x + Math.cos(nextAngle) * lucrehulkOrbitRadius;
+    const nextZ =
+      jupiter.position.z + Math.sin(nextAngle) * lucrehulkOrbitRadius;
+    const nextY =
+      jupiter.position.y +
+      Math.sin(nextAngle) *
+        lucrehulkOrbitRadius *
+        Math.sin(lucrehulkInclination);
+
+    lucrehulk.lookAt(new THREE.Vector3(nextX, nextY, nextZ));
+  }
+
+  // Star Destroyer orbita Mercúrio (índice 0)
+  if (starDestroyer && planetMeshes[0]) {
+    const mercury = planetMeshes[0].mesh;
+    starDestroyerOrbitAngle -= starDestroyerOrbitSpeed;
+
+    const x =
+      mercury.position.x +
+      Math.cos(starDestroyerOrbitAngle) * starDestroyerOrbitRadius;
+    const z =
+      mercury.position.z +
+      Math.sin(starDestroyerOrbitAngle) * starDestroyerOrbitRadius;
+    const y =
+      mercury.position.y +
+      Math.sin(starDestroyerOrbitAngle) *
+        starDestroyerOrbitRadius *
+        Math.sin(starDestroyerInclination);
+
+    starDestroyer.position.set(x, y, z);
+
+    // Orientar o modelo
+    const nextAngle = starDestroyerOrbitAngle + 0.01;
+    const nextX =
+      mercury.position.x + Math.cos(nextAngle) * starDestroyerOrbitRadius;
+    const nextZ =
+      mercury.position.z + Math.sin(nextAngle) * starDestroyerOrbitRadius;
+    const nextY =
+      mercury.position.y +
+      Math.sin(nextAngle) *
+        starDestroyerOrbitRadius *
+        Math.sin(starDestroyerInclination);
+
+    starDestroyer.lookAt(new THREE.Vector3(nextX, nextY, nextZ));
+  }
+
+  // Death Star orbita Marte (índice 3)
+  if (deathStar && planetMeshes[3]) {
+    const mars = planetMeshes[3].mesh;
+    deathStarAngle += deathStarSpeed;
+
+    const x = mars.position.x + Math.cos(deathStarAngle) * deathStarOrbitRadius;
+    const z = mars.position.z + Math.sin(deathStarAngle) * deathStarOrbitRadius;
+    const y = mars.position.y;
+
+    deathStar.position.set(x, y, z);
+
+    // Fazer a Death Star apontar para a frente da órbita
+    const nextAngle = deathStarAngle + 0.01;
+    const nextX = mars.position.x + Math.cos(nextAngle) * deathStarOrbitRadius;
+    const nextZ = mars.position.z + Math.sin(nextAngle) * deathStarOrbitRadius;
+    const target = new THREE.Vector3(nextX, y, nextZ);
+    deathStar.lookAt(target);
+  }
+
+  // Update moon positions
+  moons.forEach((moon) => {
+    moon.angle += moon.speed;
+    const parent = moon.parent.position;
+    moon.mesh.position.x = parent.x + Math.cos(moon.angle) * moon.orbitRadius;
+    moon.mesh.position.z = parent.z + Math.sin(moon.angle) * moon.orbitRadius;
+
+    moon.mesh.rotation.y += moon.rotationSpeed * delta;
+  });
+
+  // Reset direção
+  direction.set(0, 0, 0);
+
+  // Definir movimentos baseados nas teclas pressionadas
+  direction.z = Number(keys.w) - Number(keys.s); // frente/trás
+  direction.x = Number(keys.d) - Number(keys.a); // direita/esquerda
+  direction.y = Number(keys.r) - Number(keys.q); // cima/baixo
+  direction.normalize();
+
+  // Obter vetor "frente" baseado na orientação da câmara
+  const frontVector = new THREE.Vector3();
+  controls.getDirection(frontVector);
+  frontVector.y = 0;
+  frontVector.normalize();
+
+  // Obter vetor lateral (direita)
+  const sideVector = new THREE.Vector3();
+  sideVector.crossVectors(frontVector, camera.up).normalize(); // corrigido aqui!
+
+  // Vetor final de movimento
+  const moveVector = new THREE.Vector3();
+  moveVector
+    .addScaledVector(frontVector, direction.z)
+    .addScaledVector(sideVector, direction.x)
+    .addScaledVector(new THREE.Vector3(0, 1, 0), direction.y); // movimento vertical
+
+  // Aplicar movimento à posição da câmara
+  controls.object.position.addScaledVector(moveVector, moveSpeed);
+
+  comets.forEach((comet) => {
+    comet.angle += comet.speed;
+    const a = comet.orbitRadius;
+    const b = comet.orbitRadius * comet.excentricity;
+    const x = a * Math.cos(comet.angle);
+    const z = b * Math.sin(comet.angle);
+    const y = Math.sin(comet.angle) * a * Math.sin(comet.inclination);
+
+    comet.light.position.set(x, y, z);
+
+    // Calcule o próximo ponto da órbita para orientar a cauda
+    const nextAngle = comet.angle + 0.01 * comet.directionSign;
+    const nextX = a * Math.cos(nextAngle);
+    const nextZ = b * Math.sin(nextAngle);
+    const nextY = Math.sin(nextAngle) * a * Math.sin(comet.inclination);
+
+    // A cauda aponta para trás do movimento (do núcleo para o ponto anterior)
+    const tailDirection = new THREE.Vector3(
+      x - nextX,
+      y - nextY,
+      z - nextZ,
+    ).normalize();
+    comet.tail.lookAt(comet.tail.position.clone().add(tailDirection));
+  });
+
+  renderer.render(scene, camera);
+}
+animate();
+// ------------------------------------ END ANIMATE FUNCTION ------------------------------------
