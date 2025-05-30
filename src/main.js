@@ -447,3 +447,454 @@ document.getElementById("add-comet").addEventListener("click", () => {
 
   const particleSystem = new THREE.Points(particlesGeometry, particlesMaterial);
   cometLight.add(particleSystem);
+
+  scene.add(cometLight);
+
+  comets.push({
+    light: cometLight,
+    tail: tailMesh,
+    particles: particleSystem,
+    angle,
+    orbitRadius,
+    speed,
+    inclination,
+    excentricity,
+    directionSign: direction === "cw" ? 1 : -1,
+  });
+});
+
+//end comet
+
+// Create planets and their orbits
+const planetMeshes = [];
+planets.forEach((planet) => {
+  const planetGeometry = new THREE.SphereGeometry(planet.size, 32, 32);
+
+  planet.a = planet.distance;
+  planet.b = planet.distance * 0.8;
+
+  // Load the texture for the planet
+  const planetTexture = textureLoader.load(planet.texture);
+
+  // Create a MeshPhongMaterial for the planet
+  const planetMaterial = new THREE.MeshPhongMaterial({
+    map: planetTexture,
+    shininess: 5,
+  });
+
+  const planetMesh = new THREE.Mesh(planetGeometry, planetMaterial);
+  planetMesh.position.x = planet.distance;
+  scene.add(planetMesh);
+
+  if (planet.name === "Saturn") {
+    const ringInnerRadius = planet.size * 1.2;
+    const ringOuterRadius = planet.size * 2.0;
+
+    // Carrega a textura dos anéis
+    const ringTexture = textureLoader.load("/textures/ring_saturn.png");
+    ringTexture.wrapS = THREE.RepeatWrapping;
+    ringTexture.wrapT = THREE.ClampToEdgeWrapping;
+
+    const ringMaterial = new THREE.MeshPhongMaterial({
+      map: ringTexture,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.95,
+      alphaMap: ringTexture, // Usa a mesma textura para transparência
+      emissive: 0xcccccc,
+      emissiveIntensity: 0.3,
+      specular: 0x111111,
+      shininess: 30,
+    });
+
+    const segments = 256;
+    const ringGeometry = new THREE.RingGeometry(
+        ringInnerRadius,
+        ringOuterRadius,
+        segments,
+    );
+
+    // Ajusta o mapeamento UV para exibir a textura radialmente
+    const uvAttribute = ringGeometry.attributes.uv;
+    for (let i = 0; i < uvAttribute.count; i++) {
+      const u = uvAttribute.getX(i);
+      const v = uvAttribute.getY(i);
+
+      // Converte coordenadas UV para coordenadas polares
+      const radius = v; // Mantém a distância radial
+      const angle = u * Math.PI * 2; // Converte u para ângulo
+
+      // Mapeia a textura radialmente
+      uvAttribute.setXY(i, u, v);
+
+      // Alternativa para texturas que precisam de ajuste diferente:
+      uvAttribute.setXY(i, angle / (Math.PI * 2), radius);
+    }
+
+    const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+    ringMesh.rotation.x = Math.PI / 2; // Rotaciona para ficar no plano XY
+    ringMesh.rotation.z = (-26.7 * Math.PI) / 180; // Inclinação característica de Saturno
+    planetMesh.add(ringMesh);
+
+    // Adiciona um círculo preto para cobrir o centro dos anéis
+    const centerCover = new THREE.Mesh(
+        new THREE.CircleGeometry(ringInnerRadius * 0.82, 32),
+        new THREE.MeshBasicMaterial({ color: 0x000000 }),
+    );
+    centerCover.rotation.x = Math.PI / 2;
+    planetMesh.add(centerCover);
+  }
+
+  const ellipsePoints = [];
+  const numPoints = 128;
+  for (let i = 0; i <= numPoints; i++) {
+    const angle = (i / numPoints) * Math.PI * 2;
+    const x = planet.a * Math.cos(angle);
+    const z = planet.b * Math.sin(angle);
+    ellipsePoints.push(new THREE.Vector3(x, 0, z));
+  }
+  const orbitGeometry = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
+  const orbitMaterial = new THREE.LineBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.1,
+  });
+  const orbitLine = new THREE.Line(orbitGeometry, orbitMaterial);
+  //orbitLine.rotation.x = Math.PI / 2;
+  scene.add(orbitLine);
+
+  planetMeshes.push({
+    mesh: planetMesh,
+    speed: planet.speed,
+    distance: planet.distance, // ainda usado para órbitas
+    a: planet.distance, // semi-eixo maior
+    b: planet.distance * 0.8, // semi-eixo menor
+    rotationSpeed: planet.rotationSpeed,
+    orbitLine: orbitLine,
+  });
+});
+
+const planetTextures = [
+  "textures/ceres_fictional.jpg",
+  "textures/eris_fictional.jpg",
+  "textures/haumea_fictional.jpg",
+  "textures/makemake_fictional.jpg",
+  "textures/moon.jpg",
+];
+
+// -------------------------------------- BEGIN ADD PLANET FUNCTION --------------------------------------
+/**
+ * @description Adds a planet to the solar system with specified size, distance, and speed.
+ * @param size
+ * @param distance
+ * @param speed
+ */
+function addPlanet({
+                     size = 0.4,
+                     distance = 5 + planetMeshes.length * 2,
+                     speed = 0.01,
+                   } = {}) {
+  if (planetMeshes.length >= maxPlanets) {
+    alert("10 Planet limit reached!");
+    return;
+  }
+  const randomIndex = Math.floor(Math.random() * planetTextures.length);
+  const texturePath = planetTextures[randomIndex];
+
+  const geometry = new THREE.SphereGeometry(size, 32, 32);
+  const texture = textureLoader.load(texturePath);
+  const material = new THREE.MeshPhongMaterial({ map: texture });
+  const mesh = new THREE.Mesh(geometry, material);
+
+  const initialAngle = Math.random() * Math.PI * 2;
+  mesh.position.x = Math.cos(initialAngle) * distance;
+  mesh.position.z = Math.sin(initialAngle) * distance;
+  mesh.rotation.y = Math.random() * Math.PI * 2;
+
+  scene.add(mesh);
+
+  // Consistente: órbita elíptica com pontos calculados via for loop
+  const ellipsePoints = [];
+  const numPoints = 128;
+  const a = distance;
+  const b = distance * 0.8;
+
+  for (let i = 0; i <= numPoints; i++) {
+    const angle = (i / numPoints) * Math.PI * 2;
+    const x = a * Math.cos(angle);
+    const z = b * Math.sin(angle);
+    ellipsePoints.push(new THREE.Vector3(x, 0, z));
+  }
+
+  const orbitGeometry = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
+  const orbitMaterial = new THREE.LineBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.1,
+  });
+  const orbitLine = new THREE.Line(orbitGeometry, orbitMaterial);
+  scene.add(orbitLine);
+
+  planetMeshes.push({
+    mesh,
+    speed,
+    distance,
+    angle: initialAngle,
+    rotationSpeed: 0.02 + Math.random() * 0.03,
+    a: distance,
+    b: distance * 0.8,
+    orbitLine: orbitLine,
+  });
+}
+
+document.getElementById("add-planet").addEventListener("click", () => {
+  addPlanet({
+    size: 0.3 + Math.random() * 0.5, // random size between 0.3 and 0.8
+    distance: 8 + planetMeshes.length * 2, // distance based on number of planets
+    speed: 0.005 + Math.random() * 0.01, // speed between 0.005 and 0.015
+  });
+});
+// -------------------------------------- END ADD PLANET FUNCTION --------------------------------------
+
+// --------------------------------------- BEGIN ADD MOON FUNCTION --------------------------------------
+/**
+ * @description Adds a moon to a specified planet with given parameters.
+ * @param parentPlanetMesh
+ * @param size
+ * @param orbitRadius
+ * @param speed
+ * @param texturePath
+ */
+function addMoon({
+                   parentPlanetMesh,
+                   size = 0.1,
+                   orbitRadius,
+                   speed,
+                   texturePath,
+                 }) {
+  let moonCount = 0;
+
+  const baseSpacing = 0.4; // distância mínima entre órbitas
+  orbitRadius = 1.0 + moonCount * baseSpacing + Math.random() * 0.2;
+  speed = 0.001 + Math.random() * 0.008;
+
+  // Random texture selection
+  const randomIndex = Math.floor(Math.random() * planetTextures.length);
+  texturePath = planetTextures[randomIndex];
+
+  const geometry = new THREE.SphereGeometry(size, 32, 32);
+  const texture = textureLoader.load(texturePath);
+  const material = new THREE.MeshPhongMaterial({ map: texture });
+  const moonMesh = new THREE.Mesh(geometry, material);
+
+  scene.add(moonMesh);
+
+  moons.push({
+    mesh: moonMesh,
+    parent: parentPlanetMesh,
+    angle: Math.random() * Math.PI * 2,
+    orbitRadius,
+    speed,
+    rotationSpeed: 0.01 + Math.random() * 0.02,
+  });
+  updateObjectDropdown();
+  moonCount++;
+}
+
+// ------------------------------------- END ADD MOON FUNCTION --------------------------------------
+
+// ------------------------------------ BEGIN ADD ENTERPRISE ----------------------------------------
+// Load the Enterprise model
+const gltfLoader = new GLTFLoader();
+
+let enterprise = null;
+let enterpriseOrbitAngle = 0;
+const enterpriseOrbitRadius = 0.9; // pequena órbita à volta de Vénus
+const enterpriseOrbitSpeed = 0.001; // velocidade da órbita da Enterprise
+
+/**
+ * @description Adds the Enterprise model to the scene and sets its initial position and scale.
+ */
+function addEnterprise() {
+  if (enterprise) {
+    alert("Enterprise already added!");
+    return;
+  }
+
+  gltfLoader.load("/models/u.s.s._enterprise_ncc-1701.glb", (gltf) => {
+    enterprise = gltf.scene;
+    enterprise.scale.set(0.02, 0.02, 0.02);
+    scene.add(enterprise);
+  });
+}
+
+document.getElementById("add-enterprise").addEventListener("click", () => {
+  addEnterprise();
+});
+
+// ------------------------------------ END ADD ENTERPRISE ----------------------------------------
+
+// ------------------------------------ BEGIN ADD ENTERPRISE E ----------------------------------------
+
+let enterpriseE = null;
+let enterpriseEOrbitAngle = 0;
+const enterpriseEOrbitRadius = 1.2;
+const enterpriseEOrbitSpeed = 0.0008;
+const enterpriseEInclination = Math.PI / 5;
+
+/**
+ * @description Adds the Enterprise E model to the scene and sets its initial position and scale.
+ * @return {void}
+ */
+function addEnterpriseE() {
+  if (enterpriseE) {
+    alert("Enterprise E already added!");
+    return;
+  }
+
+  gltfLoader.load("/models/star_trek_uss_enterprise-e.glb", (gltf) => {
+    enterpriseE = gltf.scene;
+    enterpriseE.scale.set(0.003, 0.003, 0.003);
+    scene.add(enterpriseE);
+  });
+}
+
+document.getElementById("add-enterprise-e").addEventListener("click", () => {
+  addEnterpriseE();
+});
+
+// ------------------------------------- END ADD ENTERPRISE E ----------------------------------------
+
+// ------------------------------------ BEGIN ADD LUCREHULK ----------------------------------------
+let lucrehulk = null;
+let lucrehulkOrbitAngle = 0;
+const lucrehulkOrbitRadius = 1.8; // raio da órbita em torno de Júpiter
+const lucrehulkOrbitSpeed = 0.0006; // velocidade orbital
+const lucrehulkInclination = Math.PI / 10; // inclinação da órbita (~18°)
+
+/**
+ * @description Adds the Lucrehulk model to the scene and sets its initial position and scale.
+ * @return {void}
+ */
+function addLucrehulk() {
+  if (lucrehulk) {
+    alert("Lucrehulk already added!");
+    return;
+  }
+
+  gltfLoader.load(
+      "/models/lucrehulk.glb",
+      (gltf) => {
+        lucrehulk = gltf.scene;
+        lucrehulk.scale.set(0.03, 0.03, 0.03); // Escala reduzida compatível com Júpiter
+        scene.add(lucrehulk);
+      },
+      undefined,
+      (error) => {
+        console.error("Erro ao carregar a Lucrehulk:", error);
+      },
+  );
+}
+
+document.getElementById("add-lucrehulk").addEventListener("click", () => {
+  addLucrehulk();
+});
+// ------------------------------------ END ADD LUCREHULK ----------------------------------------
+
+// ------------------------------------ BEGIN ADD STAR DESTROYER ----------------------------------------
+let starDestroyer = null;
+let starDestroyerOrbitAngle = 0;
+const starDestroyerOrbitRadius = 0.3; // distância pequena para orbitar Mercúrio
+const starDestroyerOrbitSpeed = 0.0005; // velocidade orbital
+const starDestroyerInclination = Math.PI / 8; // ~22.5 graus
+
+/**
+ * @description Adds the Star Destroyer model to the scene and sets its initial position and scale.
+ */
+function addStarDestroyer() {
+  if (starDestroyer) {
+    alert("Star Destroyer already added!");
+    return;
+  }
+
+  gltfLoader.load(
+      "/models/star_destroyer.glb",
+      (gltf) => {
+        starDestroyer = gltf.scene;
+        starDestroyer.scale.set(0.015, 0.015, 0.015); // scale reduced
+        scene.add(starDestroyer);
+      },
+      undefined,
+      (error) => {
+        console.error("Erro ao carregar o Star Destroyer:", error);
+      },
+  );
+}
+
+document.getElementById("add-star-destroyer").addEventListener("click", () => {
+  addStarDestroyer();
+});
+
+// ------------------------------------ END ADD STAR DESTROYER ----------------------------------------
+//----------------------------------tabs
+document.querySelectorAll(".tab-button").forEach((button) => {
+  button.addEventListener("click", () => {
+    document
+        .querySelectorAll(".tab-button")
+        .forEach((btn) => btn.classList.remove("active"));
+    document
+        .querySelectorAll(".tab-content")
+        .forEach((content) => content.classList.remove("active"));
+
+    button.classList.add("active");
+    document.getElementById(button.dataset.tab).classList.add("active");
+  });
+});
+
+// Ativar o primeiro separador por padrão
+document.querySelector(".tab-button").classList.add("active");
+document.querySelector(".tab-content").classList.add("active");
+
+// ------------------------------------ BEGIN ADD DEATH STAR ----------------------------------------
+let deathStar = null;
+let deathStarAngle = 0;
+const deathStarOrbitRadius = 1.2; // distância à volta de Marte
+const deathStarSpeed = 0.0004;
+const deathStarScale = 0.003; // escala reduzida para a Death Star
+
+/**
+ * @description Adds the Death Star model to the scene and sets its initial position and scale.
+ */
+function addDeathStar() {
+  if (deathStar) {
+    alert("Star Destroyer already added!");
+    return;
+  }
+
+  gltfLoader.load(
+      "/models/death_star.glb",
+      (gltf) => {
+        deathStar = gltf.scene;
+        deathStar.scale.set(deathStarScale, deathStarScale, deathStarScale);
+        scene.add(deathStar);
+      },
+      undefined,
+      (error) => {
+        console.error("Erro ao carregar a Death Star:", error);
+      },
+  );
+}
+
+document.getElementById("add-deathstar").addEventListener("click", () => {
+  addDeathStar();
+});
+// ------------------------------------ END ADD DEATH STAR ----------------------------------------
+
+// ------------------------------------ BEGIN BACKGROUND MUSIC ------------------------------------
+const listener = new THREE.AudioListener();
+camera.add(listener);
+
+const sound = new THREE.Audio(listener);
+
+const audioLoader = new THREE.AudioLoader();
+audioLoader.load(
