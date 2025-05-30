@@ -1,5 +1,5 @@
 # pa-solar-system-simulator-03
-**Repositório para o grupo 3 de Programação Avançada do ano 24/25**
+**Repositório do Projeto 3 para o grupo 3 de Programação Avançada do ano 24/25**
 
 ## 📝 Descrição do Projeto
 Simulador 3D interativo do sistema solar utilizando WebGL/Three.js, com:
@@ -19,7 +19,7 @@ Simulador 3D interativo do sistema solar utilizando WebGL/Three.js, com:
 
 ## 📸 IMPORTANTE
 Devido a um pequeno erro de index ao remover um planeta, ele nao atualiza bem o index dentro do dropdown, mas isso não afeta a funcionalidade do simulador.
-Mas, para evitar problemas, caso elimene um planeta, de refresh na IU para que o index seja atualizado corretamente.
+Mas, para evitar problemas, caso elimine um planeta, de refresh na IU para que o index seja atualizado corretamente.
 
 ## 🛠️ Instalação
 ### Pré-requisitos
@@ -41,7 +41,7 @@ Mas, para evitar problemas, caso elimene um planeta, de refresh na IU para que o
     ```
 4. Abra o browser e acesse:
    ```
-   http://localhost:5174/
+   http://localhost:5173/
    ```
 5. Explore o simulador como bem entender!
 
